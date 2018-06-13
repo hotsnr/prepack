@@ -11,6 +11,7 @@
 
 import {
   AbstractValue,
+  AbstractObjectValue,
   ArrayValue,
   BooleanValue,
   EmptyValue,
@@ -25,12 +26,56 @@ import {
   PrimitiveValue,
   Value,
 } from "./values/index.js";
+import { Get } from "./methods/index.js";
+import type { Realm } from "./realm.js";
 import invariant from "./invariant.js";
 
-export function typeToString(type: typeof Value): void | string {
-  function isInstance(proto, Constructor): boolean {
-    return proto instanceof Constructor || proto === Constructor.prototype;
+function isInstance(proto, Constructor): boolean {
+  return proto instanceof Constructor || proto === Constructor.prototype;
+}
+
+export function typeToIRType(type: typeof Value): string {
+  let proto = type.prototype;
+  if (isInstance(proto, EmptyValue)) {
+    return "unknown";
+  } else if (isInstance(proto, UndefinedValue)) {
+    return "undefined";
+  } else if (isInstance(proto, NullValue)) {
+    return "null";
+  } else if (isInstance(proto, StringValue)) {
+    return "string";
+  } else if (isInstance(proto, BooleanValue)) {
+    return "boolean";
+  } else if (isInstance(proto, IntegralValue)) {
+    return "integral";
+  } else if (isInstance(proto, NumberValue)) {
+    return "number";
+  } else if (isInstance(proto, ObjectValue)) {
+    return "object";
+  } else {
+    return "unknown";
   }
+}
+
+export function abstractValueGetIRType(realm: Realm, value: AbstractValue): string {
+  // try to get object type from model (only simple objects supported)
+  // used when prepack is not capable of particular representation
+  // (for instance, arrays)
+  if (value instanceof AbstractObjectValue) {
+    try {
+      let specialPropertyValue = Get(realm, value, "__object_type__");
+      if (specialPropertyValue instanceof StringValue) {
+        return specialPropertyValue.value;
+      }
+    } catch (error) {
+      // Key is not present
+      // Nope, $HasProperty doesn't work properly
+    }
+  }
+  return typeToIRType(value.getType());
+}
+
+export function typeToString(type: typeof Value): void | string {
   let proto = type.prototype;
   if (isInstance(proto, UndefinedValue)) {
     return "undefined";
@@ -80,6 +125,35 @@ export function getTypeFromName(typeName: string): void | typeof Value {
       return IntegralValue;
     default:
       return undefined;
+  }
+}
+
+export function getOpString(op: string): string {
+  switch (op) {
+    case "+":
+      return "p";
+    case "-":
+      return "m";
+    case "*":
+      return "mult";
+    case "<":
+      return "l";
+    case ">":
+      return "g";
+    case ">=":
+      return "ge";
+    case "<=":
+      return "le";
+    case "!=":
+      return "ne";
+    case "==":
+      return "e";
+    case "!==":
+      return "sne";
+    case "===":
+      return "se";
+    default:
+      return "__not_supported__";
   }
 }
 

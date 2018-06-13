@@ -22,6 +22,7 @@ import type { Realm } from "../realm.js";
 import type { PropertyKeyValue } from "../types.js";
 import { PreludeGenerator } from "../utils/generator.js";
 import buildExpressionTemplate from "../utils/builder.js";
+import { getOpString, typeToIRType, abstractValueGetIRType } from "../utils.js";
 
 import {
   AbstractObjectValue,
@@ -574,24 +575,28 @@ export default class AbstractValue extends Value {
     isCondition?: boolean,
     doNotSimplify?: boolean
   ): Value {
-    let leftTypes, leftValues;
+    let leftTypes, leftValues, leftTypeString;
     if (left instanceof AbstractValue) {
       leftTypes = left.types;
       leftValues = left.values;
+      leftTypeString = abstractValueGetIRType(realm, left);
     } else {
       leftTypes = new TypesDomain(left.getType());
       invariant(left instanceof ConcreteValue);
       leftValues = new ValuesDomain(left);
+      leftTypeString = typeToIRType(left.getType());
     }
 
-    let rightTypes, rightValues;
+    let rightTypes, rightValues, rightTypeString;
     if (right instanceof AbstractValue) {
       rightTypes = right.types;
       rightValues = right.values;
+      rightTypeString = abstractValueGetIRType(realm, right);
     } else {
       rightTypes = new TypesDomain(right.getType());
       invariant(right instanceof ConcreteValue);
       rightValues = new ValuesDomain(right);
+      rightTypeString = typeToIRType(right.getType());
     }
 
     let resultTypes = TypesDomain.binaryOp(op, leftTypes, rightTypes);
@@ -600,9 +605,15 @@ export default class AbstractValue extends Value {
         ? ValuesDomain.topVal
         : ValuesDomain.binaryOp(realm, op, leftValues, rightValues);
     let [hash, args] = kind === undefined ? hashBinary(op, left, right) : hashCall(kind, left, right);
-    let result = new AbstractValue(realm, resultTypes, resultValues, hash, args, ([x, y]) =>
-      t.binaryExpression(op, x, y)
-    );
+
+    // check if arguments were exchanged and swap
+    if (left != args[0]) {
+      [leftTypeString, rightTypeString] = [rightTypeString, leftTypeString];
+    }
+    let opFuncName = getOpString(op) + "_" + leftTypeString + "_" + rightTypeString;
+    let result = new AbstractValue(realm, resultTypes, resultValues, hash, args, ([x, y]) => {
+      return t.callExpression(t.identifier(opFuncName), [x, y])
+    });
     result.kind = kind || op;
     result.expressionLocation = loc;
     if (doNotSimplify) return result;

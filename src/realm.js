@@ -68,6 +68,7 @@ import { Environment, Functions, Join, Properties, To, Widen, Path } from "./sin
 import type { ReactSymbolTypes } from "./react/utils.js";
 import type { BabelNode, BabelNodeSourceLocation, BabelNodeLVal, BabelNodeStatement } from "babel-types";
 import * as t from "babel-types";
+import { typeToIRType, abstractValueGetIRType } from "./utils.js";
 
 export type BindingEntry = {
   leakedImmutableValue: void | Value,
@@ -1535,13 +1536,14 @@ export class Realm {
       propertyValue = absVal;
     }
     if (!propertyValue.isIntrinsic()) {
+      let typeString = propertyValue instanceof AbstractValue
+        ? abstractValueGetIRType(this, propertyValue)
+        : typeToIRType(propertyValue);
       propertyValue.intrinsicName = `${path}.${key}`;
       propertyValue.kind = "rebuiltProperty";
       propertyValue.args = [object];
-      propertyValue._buildNode = ([node]) =>
-        t.isValidIdentifier(key)
-          ? t.memberExpression(node, t.identifier(key), false)
-          : t.memberExpression(node, t.stringLiteral(key), true);
+      propertyValue._buildNode = ([node], context, valuesToProcess) =>
+          t.callExpression(t.identifier("prop_" +  abstractValueGetIRType(this, propertyValue)), [node, t.stringLiteral(key)]);
       this.rebuildNestedProperties(propertyValue, propertyValue.intrinsicName);
     }
   }
