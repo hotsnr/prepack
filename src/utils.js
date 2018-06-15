@@ -57,22 +57,18 @@ export function typeToIRType(type: typeof Value): string {
   }
 }
 
-export function abstractValueGetIRType(realm: Realm, value: AbstractValue): string {
-  // try to get object type from model (only simple objects supported)
-  // used when prepack is not capable of particular representation
-  // (for instance, arrays)
-  if (value instanceof AbstractObjectValue) {
-    try {
-      let specialPropertyValue = Get(realm, value, "__object_type__");
-      if (specialPropertyValue instanceof StringValue) {
-        return specialPropertyValue.value;
-      }
-    } catch (error) {
-      // Key is not present
-      // Nope, $HasProperty doesn't work properly
+export function propertyAccessGetGraphQLType(realm: Realm, base: ObjectValue | AbstractObjectValue, key: string): void | string {
+  try {
+    let typeInfo = Get(realm, base, "__prop_graphql_type__");
+    let propertyType = Get(realm, typeInfo, key);
+    if (propertyType instanceof StringValue) {
+      return propertyType.value;
     }
+  } catch (error) {
+    // Key is not present
+    // Nope, $HasProperty doesn't work properly
   }
-  return typeToIRType(value.getType());
+  return undefined;
 }
 
 export function typeToString(type: typeof Value): void | string {

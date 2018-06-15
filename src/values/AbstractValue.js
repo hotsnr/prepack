@@ -22,7 +22,7 @@ import type { Realm } from "../realm.js";
 import type { PropertyKeyValue } from "../types.js";
 import { PreludeGenerator } from "../utils/generator.js";
 import buildExpressionTemplate from "../utils/builder.js";
-import { getOpString, typeToIRType, abstractValueGetIRType } from "../utils.js";
+import { getOpString, typeToIRType, propertyAccessGetGraphQLType } from "../utils.js";
 
 import {
   AbstractObjectValue,
@@ -575,28 +575,24 @@ export default class AbstractValue extends Value {
     isCondition?: boolean,
     doNotSimplify?: boolean
   ): Value {
-    let leftTypes, leftValues, leftTypeString;
+    let leftTypes, leftValues;
     if (left instanceof AbstractValue) {
       leftTypes = left.types;
       leftValues = left.values;
-      leftTypeString = abstractValueGetIRType(realm, left);
     } else {
       leftTypes = new TypesDomain(left.getType());
       invariant(left instanceof ConcreteValue);
       leftValues = new ValuesDomain(left);
-      leftTypeString = typeToIRType(left.getType());
     }
 
-    let rightTypes, rightValues, rightTypeString;
+    let rightTypes, rightValues;
     if (right instanceof AbstractValue) {
       rightTypes = right.types;
       rightValues = right.values;
-      rightTypeString = abstractValueGetIRType(realm, right);
     } else {
       rightTypes = new TypesDomain(right.getType());
       invariant(right instanceof ConcreteValue);
       rightValues = new ValuesDomain(right);
-      rightTypeString = typeToIRType(right.getType());
     }
 
     let resultTypes = TypesDomain.binaryOp(op, leftTypes, rightTypes);
@@ -607,6 +603,8 @@ export default class AbstractValue extends Value {
     let [hash, args] = kind === undefined ? hashBinary(op, left, right) : hashCall(kind, left, right);
 
     // check if arguments were exchanged and swap
+    let leftTypeString = typeToIRType(left.getType()),
+        rightTypeString = typeToIRType(right.getType());
     if (left != args[0]) {
       [leftTypeString, rightTypeString] = [rightTypeString, leftTypeString];
     }

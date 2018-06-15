@@ -68,7 +68,7 @@ import { Environment, Functions, Join, Properties, To, Widen, Path } from "./sin
 import type { ReactSymbolTypes } from "./react/utils.js";
 import type { BabelNode, BabelNodeSourceLocation, BabelNodeLVal, BabelNodeStatement } from "babel-types";
 import * as t from "babel-types";
-import { typeToIRType, abstractValueGetIRType } from "./utils.js";
+import { propertyAccessGetGraphQLType, typeToIRType  } from "./utils.js";
 
 export type BindingEntry = {
   leakedImmutableValue: void | Value,
@@ -1536,14 +1536,16 @@ export class Realm {
       propertyValue = absVal;
     }
     if (!propertyValue.isIntrinsic()) {
-      let typeString = propertyValue instanceof AbstractValue
-        ? abstractValueGetIRType(this, propertyValue)
-        : typeToIRType(propertyValue);
+      // if base is object then try to get embedded type information
+      // otherwise fallback to prepack types
+      var graphQLType =
+        ((object instanceof AbstractObjectValue) && propertyAccessGetGraphQLType(this, object, key))
+        || typeToIRType(propertyValue.getType());
       propertyValue.intrinsicName = `${path}.${key}`;
       propertyValue.kind = "rebuiltProperty";
       propertyValue.args = [object];
       propertyValue._buildNode = ([node], context, valuesToProcess) =>
-          t.callExpression(t.identifier("prop_" +  abstractValueGetIRType(this, propertyValue)), [node, t.stringLiteral(key)]);
+          t.callExpression(t.identifier("prop_" +  graphQLType), [node, t.stringLiteral(key)]);
       this.rebuildNestedProperties(propertyValue, propertyValue.intrinsicName);
     }
   }
